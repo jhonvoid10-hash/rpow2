@@ -464,6 +464,12 @@ async fn run_account_loop(
                 let sleep_ms = if matches!(e, FarmError::RateLimited { .. })
                     || e.is_server_overloaded()
                 {
+                    // Rotate proxy IP saat rate limit
+                    if matches!(e, FarmError::RateLimited { .. }) {
+                        if let Some(url) = &cfg.rpow2.proxy_rotation_url {
+                            rotate_proxy_ip(url, &email, &bus).await;
+                        }
+                    }
                     cfg.loop_pacing.sleep_on_rate_limit_ms
                 } else {
                     cfg.loop_pacing.sleep_on_error_ms
@@ -512,7 +518,9 @@ async fn run_account_loop(
         let outcome = match tokio::time::timeout(
             Duration::from_millis(cfg.loop_pacing.mining_timeout_ms),
             reply_rx,
-        ).await {
+        )
+        .await
+        {
             Ok(Ok(o)) => o,
             Ok(Err(_)) => {
                 // Worker dropped without sending — treat as transient.
@@ -550,6 +558,12 @@ async fn run_account_loop(
                 let sleep_ms = if matches!(e, FarmError::RateLimited { .. })
                     || e.is_server_overloaded()
                 {
+                    // Rotate proxy IP saat mint rate limit
+                    if matches!(e, FarmError::RateLimited { .. }) {
+                        if let Some(url) = &cfg.rpow2.proxy_rotation_url {
+                            rotate_proxy_ip(url, &email, &bus).await;
+                        }
+                    }
                     cfg.loop_pacing.sleep_on_rate_limit_ms
                 } else {
                     cfg.loop_pacing.sleep_on_error_ms
@@ -678,6 +692,24 @@ async fn handle_account_error(
             last_error: Some(msg),
             timestamp: Utc::now(),
         });
+    }
+}
+
+/// Hit IPFoxy rotation API supaya IP langsung ganti
+async fn rotate_proxy_ip(rotation_url: &str, email: &str, bus: &DashBus) {
+    match reqwest::get(rotation_url).await {
+        Ok(resp) => {
+            if let Ok(text) = resp.text().await {
+                if text.contains("success") || text.contains("status") {
+                    bus.log_info(format!("{email}: proxy IP rotated successfully"));
+                } else {
+                    bus.log_warn(format!("{email}: proxy rotation response: {text}"));
+                }
+            }
+        }
+        Err(e) => {
+            bus.log_warn(format!("{email}: proxy rotation failed: {e}"));
+        }
     }
 }
 

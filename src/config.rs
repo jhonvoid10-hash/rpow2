@@ -365,6 +365,11 @@ pub struct Rpow2Config {
     /// deterministically by hashing its email address. Overrides `proxy`.
     #[serde(default)]
     pub proxy_pool: Vec<String>,
+    /// IPFoxy Manual Rotation API URL.
+    /// Contoh: "http://next.ipfoxy.io"
+    /// Kalau diisi, bot akan hit URL ini saat kena rate limit supaya IP langsung ganti.
+    #[serde(default)]
+    pub proxy_rotation_url: Option<String>,
 }
 
 impl Rpow2Config {
